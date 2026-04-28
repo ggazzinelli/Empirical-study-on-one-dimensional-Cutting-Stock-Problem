@@ -1,0 +1,110 @@
+using JuMP
+using Gurobi
+############################################################
+# Solve Cutting Stock using Arc-Flow formulation
+#
+# Inputs
+#   L  -> stock length
+#   l  -> item lengths
+#   d  -> item demands
+#   arcs -> vector of arcs (i,j,type)
+#           type = 0 → loss arc
+#
+# Output
+#   model, x variables, z variable
+############################################################
+
+function solve_arcflow(L::Int, l::Vector{Int}, d::Vector{Int}, arcs;
+                       time_limit = 60.0)
+
+    ########################################################
+    # Build node set
+    ########################################################
+    V = unique([a[1] for a in arcs] ∪ [a[2] for a in arcs])
+
+    ########################################################
+    # Arc index set
+    ########################################################
+    A = [(a[1], a[2], a[3]) for a in arcs]
+        ########################################################
+        # Arc index set (remove duplicates)
+       ########################################################
+    A = collect(Set(arcs))
+    ########################################################
+    # Create JuMP model
+    ########################################################
+    model = Model(Gurobi.Optimizer)
+
+    set_optimizer_attribute(model, "TimeLimit", time_limit)
+
+    ########################################################
+    # Variables
+    ########################################################
+    @variable(model, x[A] >= 0, Int)   # flow on arcs
+    @variable(model, z >= 0, Int)      # number of bins
+
+    ########################################################
+    # Flow conservation constraints
+    ########################################################
+
+    for v in V
+
+        incoming = [(i,j,t) for (i,j,t) in A if j == v]
+        outgoing = [(i,j,t) for (i,j,t) in A if i == v]
+
+        if v == 0
+            @constraint(model,
+                sum(x[a] for a in outgoing) -
+                sum(x[a] for a in incoming) == z
+            )
+
+        elseif v == L
+            @constraint(model,
+                sum(x[a] for a in outgoing) -
+                sum(x[a] for a in incoming) == -z
+            )
+
+        else
+            @constraint(model,
+                sum(x[a] for a in outgoing) -
+                sum(x[a] for a in incoming) == 0
+            )
+        end
+    end
+
+    ########################################################
+    # Demand satisfaction constraints
+    ########################################################
+
+    m = length(l)
+
+    for t in 1:m
+
+        arcs_of_type = [(i,j,k) for (i,j,k) in A if k == t]
+
+        if isempty(arcs_of_type)
+            @warn "No arcs for item type $t"
+        end
+
+        @constraint(model,
+            sum(x[a] for a in arcs_of_type) >= d[t]
+        )
+    end
+
+    ########################################################
+    # Objective
+    ########################################################
+
+    @objective(model, Min, z)
+
+    ########################################################
+    # Solve
+    ########################################################
+
+    optimize!(model)
+
+    return model, x, z
+
+end
+
+

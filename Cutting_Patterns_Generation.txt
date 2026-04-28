@@ -1,0 +1,141 @@
+
+############################################################
+# Recursive generation of cutting patterns
+############################################################
+function Gera_A(l, L, M, inicio, d_aux, I, T, M2, pads, d, l_full, lmin, min_idx, Limit)
+
+    # Early stopping if limit is reached
+    if length(pads) >= Limit
+        return
+    end
+
+    for i = I:M
+
+        ####################################################
+        # Case 1: item i still fits
+        ####################################################
+        if inicio + l[i] <= L
+
+            d2 = copy(d_aux)
+            d2[i] += 1
+
+            Gera_A(l, L, M, inicio + l[i], d2, i, T, M2, pads, d, l_full, lmin, min_idx, Limit)
+
+            if length(pads) >= Limit
+                return
+            end
+
+        ####################################################
+        # Case 2: item i does not fit → maximal pattern
+        ####################################################
+        else
+
+            d3 = zeros(Int, M2)
+
+            for k = 1:M
+                d3[T[k]] = d_aux[k]
+            end
+
+            ################################################
+            # Apply pattern acceptance criteria
+            ################################################
+
+            # Nonempty pattern
+            if sum(d3) > 0
+
+                ################################################
+                # Demand criterion
+                ################################################
+
+                demand_ok = true
+
+                for j in 1:M2
+                    if j != min_idx && d3[j] > d[j]
+                        demand_ok = false
+                        break
+                    end
+                end
+
+                ################################################
+                # Length criterion
+                ################################################
+
+                total_length = sum(d3[j] * l_full[j] for j in 1:M2)
+
+                length_ok = total_length >= L - lmin
+
+                ################################################
+                # Store pattern
+                ################################################
+
+                if demand_ok && length_ok
+                    push!(pads, d3)
+                end
+            end
+        end
+    end
+end
+
+############################################################
+# Main pattern generation function
+############################################################
+function gera_padroes(C, l, L, M, d, Limit)
+
+    pads = Set{Vector{Int}}()
+    M2 = M
+
+    ########################################################
+    # Generate subsets
+    ########################################################
+
+    T = collect(combinations(1:M2, C))
+
+ for subset in T
+
+    if length(pads) >= Limit
+        break
+    end
+
+    l_subset = l[subset]
+
+    ########################################################
+    # FIX: mínimo DENTRO do subset
+    ########################################################
+    local_min_idx = argmin(l_subset)
+    lmin_subset = l_subset[local_min_idx]
+    min_idx_subset = subset[local_min_idx]
+
+    d_aux = zeros(Int, C)
+
+    Gera_A(
+        l_subset,
+        L,
+        C,
+        0,
+        d_aux,
+        1,
+        subset,
+        M2,
+        pads,
+        d,
+        l,
+        lmin_subset,      # ← corrigido
+        min_idx_subset,   # ← corrigido (global!)
+        Limit
+    )
+end
+
+    ########################################################
+    # Convert set → vector
+    ########################################################
+
+    P = collect(pads)
+    P = [collect(t) for t in Set(Tuple.(P))]
+    if length(P) > Limit
+        P = P[1:Limit]
+    end
+
+    P_s = length(P)
+
+    return P, P_s
+end

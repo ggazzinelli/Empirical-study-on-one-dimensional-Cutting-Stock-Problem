@@ -1,0 +1,93 @@
+using JuMP
+using Gurobi
+############################################################
+# Arc-flow graph generation (baseline version)
+#
+# No cardinality restriction
+# All arcs are considered feasible
+############################################################
+
+function generate_arcflow_graph(L::Int, l::Vector{Int}, d::Vector{Int})
+
+    m = length(l)
+
+    As = Vector{Tuple{Int,Int,Int}}()
+    Aloss = Vector{Tuple{Int,Int}}()
+    V = Set{Int}()
+
+    ########################################################
+    # M[l] indicates if node l is reachable
+    ########################################################
+    M = falses(L+1)
+    M[1] = true
+
+    push!(V,0)
+    push!(V,L)
+
+    ########################################################
+    # Only the smallest item can be produced beyond demand
+    ########################################################
+
+    d_aux = deepcopy(d)
+
+    min_idx = argmin(l)     # index of the smallest item
+    d_aux[min_idx] = L
+
+    ########################################################
+    # Main loop over item types
+    ########################################################
+    for i in 1:m
+
+        H = falses(L+1)
+
+        for j in 1:d_aux[i]
+
+            for v in L:-1:0   # renamed to avoid overwriting vector l
+
+                if M[v+1] && !H[v+1]
+
+                    H[v+1] = true
+
+                    ################################################
+                    # Check if item fits
+                    ################################################
+                    if v + l[i] <= L
+
+                        tail = v
+                        head = v + l[i]
+
+                        push!(As,(tail,head,i))
+
+                        push!(V,head)
+                        M[head+1] = true
+
+                    end
+                end
+            end
+
+            H .= false
+
+        end
+    end
+
+########################################################
+# Loss arcs (only for v > L - l_min)
+########################################################
+    V_sorted = sort(collect(V))
+
+    lmin = minimum(l)
+
+    for k in 1:length(V_sorted)-1
+
+        tail = V_sorted[k]
+        head = V_sorted[k+1]
+
+        if tail > L - lmin
+            push!(Aloss,(tail, head))
+        end
+
+    end
+
+    return V_sorted, As, Aloss
+
+end

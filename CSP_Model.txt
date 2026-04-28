@@ -1,0 +1,116 @@
+############################################################
+# Required packages
+############################################################
+
+using JuMP
+using Gurobi
+
+############################################################
+# CSP_Model
+#
+# Solves the one-dimensional Cutting Stock Problem (CSP)
+# using a compact Integer Linear Programming formulation.
+#
+# Mathematical formulation:
+#
+#   Minimize    ∑_{s=1}^{P_s} p_s
+#
+#   subject to  ∑_{s=1}^{P_s} a_{ks} p_s ≥ d_k   ∀ k = 1,...,M
+#               p_s ∈ ℤ₊
+#
+# where:
+#   - a_{ks} represents the number of items of type k
+#     in cutting pattern s (given in matrix/vector P)
+#   - d_k is the demand of item type k
+#   - p_s is the number of times pattern s is used
+#
+# INPUT:
+#   P    -> Vector of integer cutting patterns.
+#           Each pattern P[s] is a Vector{Int} of length M,
+#           representing the coefficients a_{ks}.
+#   d    -> Demand vector (length M).
+#   P_s  -> Number of available patterns (length(P)).
+#
+# OUTPUT:
+#   If infeasible:
+#       [-1, -1, -1, -1, -1, -1]
+#
+#   If optimal:
+#       [solution_vector, objective_value, objective_value, runtime]
+#
+#   If time limit reached (feasible but not proven optimal):
+#       [solution_vector, objective_value, best_bound, runtime]
+#
+############################################################
+
+function CSP_Model(P, d, P_s)
+
+    # Number of item types
+    M = length(d)
+
+    # Create the optimization model using Gurobi
+    model = Model(Gurobi.Optimizer)
+
+    # Optional: uncomment to suppress solver output
+    # set_silent(model)
+
+    # Set a time limit (in seconds)
+    set_time_limit_sec(model, 60)
+
+    ########################################################
+    # Decision variables
+    #
+    # p[s] = number of times cutting pattern s is used.
+    # These are non-negative integer variables.
+    ########################################################
+    @variable(model, p[s = 1:P_s] >= 0, Int)
+
+    ########################################################
+    # Objective function
+    #
+    # Minimize the total number of stock rolls used,
+    # i.e., the total number of selected patterns.
+    ########################################################
+    @objective(model, Min, sum(p))
+
+    ########################################################
+    # Demand satisfaction constraints
+    #
+    # For each item type k, the total number of produced
+    # items across all selected patterns must be at least
+    # its demand d[k].
+    ########################################################
+    for k = 1:M
+        @constraint(model,
+            sum(P[s][k] * p[s] for s = 1:P_s) >= d[k]
+        )
+    end
+
+    ########################################################
+    # Solve the model and measure runtime
+    ########################################################
+    runtime = @elapsed optimize!(model)
+
+    ########################################################
+    # Handle solver termination cases
+    ########################################################
+
+    # Case 1: Infeasible model or no feasible solution found
+    if termination_status(model) == INFEASIBLE || result_count(model) == 0
+        return [-1, -1, -1, -1, -1, -1]
+    end
+
+    # Case 2: Proven optimal solution
+    if termination_status(model) == OPTIMAL
+        solution = value.(p)
+        obj = objective_value(model)
+        return [solution, obj, obj, runtime]
+    end
+
+    # Case 3: Time limit reached but a feasible solution exists
+    solution = value.(p)
+    return [solution,
+            objective_value(model),
+            objective_bound(model),
+            runtime]
+end

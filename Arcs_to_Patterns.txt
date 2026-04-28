@@ -1,0 +1,90 @@
+
+
+############################################################
+# Extract unique cutting patterns (0-1 vectors)
+# Returns:
+#   patterns -> vector of unique patterns
+#   freq     -> number of times each pattern appears
+############################################################
+
+function extract_unique_patterns(L, l, arcs, x)
+
+    m = length(l)
+
+    ########################################################
+    # keep only arcs with positive flow
+    ########################################################
+    flow = Dict{Tuple{Int,Int,Int},Int}()
+
+    for a in arcs
+        val = round(Int, value(x[a]))
+        if val > 0
+            flow[a] = val
+        end
+    end
+
+    ########################################################
+    # dictionary for unique patterns
+    ########################################################
+    pattern_count = Dict{Vector{Int},Int}()
+
+    ########################################################
+    # decompose flow into paths
+    ########################################################
+    while true
+
+        start_arcs = [a for a in keys(flow) if a[1] == 0 && flow[a] > 0]
+
+        if isempty(start_arcs)
+            break
+        end
+
+        node = 0
+        pattern = zeros(Int, m)
+        path = Tuple{Int,Int,Int}[]
+
+        ####################################################
+        # follow one path
+        ####################################################
+        while node != L
+
+            arc = first([a for a in keys(flow) if a[1] == node && flow[a] > 0])
+
+            push!(path, arc)
+
+            (_, head, type) = arc
+
+            if type != 0
+                pattern[type] = 1
+            end
+
+            node = head
+        end
+
+        ####################################################
+        # remove one unit of flow
+        ####################################################
+        for a in path
+            flow[a] -= 1
+        end
+
+        ####################################################
+        # store pattern
+        ####################################################
+        if haskey(pattern_count, pattern)
+            pattern_count[pattern] += 1
+        else
+            pattern_count[pattern] = 1
+        end
+
+    end
+
+    ########################################################
+    # convert dictionary to arrays
+    ########################################################
+    patterns = collect(keys(pattern_count))
+    freq = collect(values(pattern_count))
+
+    return patterns, freq
+
+end
