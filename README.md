@@ -30,16 +30,6 @@ This model is used within a heuristic framework that relies on a pre-generated s
 Procedure for generating feasible cutting patterns prior to solving the pattern-based model.
 This step is essential for the heuristic filtering approach.
 
-Methodological Overview
-
-The repository includes two main approaches:
-
-Arc-flow formulation
-A compact and exact representation of the CSP using network flows.
-Pattern-based formulation with heuristic filtering
-A two-stage approach where patterns are first generated and then selected via an integer programming model.
-Purpose
-
 The code is provided as supplementary material for the paper:
 
 Empirical Study on One-Dimensional Cutting Stock Problem
